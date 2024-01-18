@@ -1,4 +1,8 @@
 import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
 """This is just a sample module to show the implementation."""
 class Calculator:
     """This is a sample class within the sample module that gets instatiated in the app.py.
@@ -81,57 +85,146 @@ class Calculator:
         return (minimum_value + actual_need*((1-a**using_periods) / (1-a))) / a**using_periods
 
     
-    def get_saving_rate(self, age_now, age_then, target_retirement, vmin, v0, monthly_need, interest_per_period, tax_on_interest):
+    def get_saving_rate(self,
+                        age_now: int,
+                        age_then: int,
+                        target_retirement: int,
+                        vmin: float,
+                        v0: float,
+                        monthly_need: float,
+                        interest_per_period_saving: float,
+                        interest_per_period_taking: float,
+                        tax_on_interest: float):
         saving_periods = (target_retirement - age_now)*12
         using_periods = (age_then - target_retirement)*12
-        a = 1 + interest_per_period
+        a_saving = 1 + interest_per_period_saving
         vx = self.get_vx(minimum_value=vmin,
                          monthly_need=monthly_need,
                          using_periods=using_periods,
                          saving_periods=saving_periods,
-                         interest_per_period=interest_per_period,
+                         interest_per_period=interest_per_period_taking,
                          tax_on_interest=tax_on_interest)
         
-        sr = (vx - v0 * a**saving_periods) *(1-a)/(1-a**saving_periods)
+        sr = (vx - v0 * a_saving**saving_periods) *(1-a_saving)/(1-a_saving**saving_periods)
 
         print(f"Saving periods: {saving_periods}, using periods: {using_periods}, vx: {vx}, sr: {sr}")
-        return sr
+        return sr, vx
+    
+    def generate_saving_rate_dataframe(self,
+                                       age_now: int,
+                                       age_then: int,
+                                       target_retirement: int,
+                                       vmin: float,
+                                       v0: float,
+                                       monthly_need: float,
+                                       interest_per_period_saving: float,
+                                       interest_per_period_taking: float,
+                                       tax_on_interest: float):
+        df = pd.DataFrame()
+        # Generate list of monthly needs from 1000 to 5000 with 500 increments
+        monthly_needs = np.arange(1000, 5000, 500)
+        # Generate retirement age range from 45 to 65 with 1 year increments
+        retirement_ages = np.arange(50, 65, 1)
+        for monthly_need in monthly_needs:
+            for retirement_age in retirement_ages:
+                saving_rate, vx = self.get_saving_rate(age_now=age_now,
+                                                   age_then=95,
+                                                   target_retirement=retirement_age,
+                                                   vmin=vmin,
+                                                   v0=v0,
+                                                   monthly_need=monthly_need,
+                                                   interest_per_period_saving=interest_per_period_saving,
+                                                   interest_per_period_taking=interest_per_period_taking,
+                                                   tax_on_interest=tax_on_interest)
+                df = df._append({"monthly_need": monthly_need,
+                                "retirement_age": retirement_age,
+                                "saving_rate": saving_rate,
+                                "max_value" : vx}, ignore_index=True)
+                
+        saving_interest = np.arange(0.02, 0.1, 0.02)
+        taking_interest = np.arange(0.02, 0.1, 0.01)
+        monthly_need = 3500
+        retirement_age = 60
+
+        df_interest = pd.DataFrame()
+
+        for sinterest in saving_interest:
+            sinterestm = (1+sinterest)**(1/12)-1
+            for tinterest in taking_interest:
+                tinterestm = (1+tinterest)**(1/12)-1
+                saving_rate, vx = self.get_saving_rate(age_now=age_now,
+                                                   age_then=95,
+                                                   target_retirement=retirement_age,
+                                                   vmin=vmin,
+                                                   v0=v0,
+                                                   monthly_need=monthly_need,
+                                                   interest_per_period_saving=sinterestm,
+                                                   interest_per_period_taking=tinterestm,
+                                                   tax_on_interest=tax_on_interest)
+                df_interest = df_interest._append({"monthly_need": monthly_need,
+                                                   "saving_interest": sinterest,
+                                                    "taking_interest": tinterest,
+                                                    "retirement_age": retirement_age,
+                                                    "saving_rate": saving_rate,
+                                                    "max_value" : vx}, ignore_index=True)
+                
+        print(df_interest)
+        # make plot with saving interest on x-axis and saving rate on y-axis and different lines for taking interest
+        # Using matplotlib
+        fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+        for taking_interest in df_interest["taking_interest"].unique():
+            df_interest[df_interest["taking_interest"] == taking_interest].plot(x="saving_interest", y="saving_rate", ax=ax, label=taking_interest)
+        # Add grid
+        plt.grid(True)
+        # Save plot
+        plt.savefig("saving_rate_vs_interest.png")
+        return df
+    
+    def draw_saving_rate_vs_age(self, df):
+        # Create plot
+        # Make plot with 3 subplots below each other
+        fig, ax = plt.subplots(3, 1, figsize=(10, 10))
+        # Make lineplot with retirement age on x-axis and saving rate on y-axis with monthly_need as separate lines
+        # using matplotlib
+        for monthly_need in df["monthly_need"].unique():
+            df[df["monthly_need"] == monthly_need].plot(x="retirement_age", y="saving_rate", ax=ax[0], label=monthly_need)
+            # Draw max_value on second plot with retirement age on x-axis and max_value on y-axis
+            df[df["monthly_need"] == monthly_need].plot(x="retirement_age", y="max_value", ax=ax[1], label=monthly_need)
+        # Add grid to all subplots
+        for i in range(3):
+            ax[i].grid(True)
+        # Add grid
+        plt.grid(True)
+        # Make y ticks every 100
+        plt.yticks(np.arange(0, 2200, 200))
+        # Save plot
+        plt.savefig("saving_rate_vs_age.png")
     
     # Wie viel muss ich sparen, damit ich ich in X perioden genug für Y perioden bei Z entnahme habe?
 
     
 if __name__ == "__main__":
     calc = Calculator()
-    """print(calc.get_value_after_takeout(500000,
-                                       3000,
-                                       (1+0.05)**(1/12)-1, 0.25, 0.6, 300))
-    print(calc.get_value_after_saving(start_value=10000,
-                                      saving_per_period=1000,
-                                      interest_per_period=0.05,
-                                      periods=11))
-    
-    print(calc.time_to_value_taking(start_value=10000,
-                               minimum_value=1000,
-                               needed_per_period=300,
-                               interest_per_period=0.02,
-                               tax_on_interest=0.25,
-                               interest_share=0.5))
-    
-    print(calc.time_to_value_saving(start_value=10000,
-                                    target_value=20000,
-                                    saving_per_period=1000,
-                                    interest_per_period=0.02))
-     """   
-    
-    #print(calc.get_hypo_interest_share(100, 0.02))
-
-    calc.get_saving_rate(age_now=33,
+    """calc.get_saving_rate(age_now=34,
                             age_then=95,
                             target_retirement=65,
                             vmin=100000,
-                            v0=10000,
-                            monthly_need=1500,
-                            interest_per_period=(1+0.06)**(1/12)-1,
-                            tax_on_interest=0.25)
+                            v0=60000,
+                            monthly_need=4000,
+                            interest_per_period_saving=(1+0.06)**(1/12)-1,
+                            interest_per_period_taking=(1+0.04)**(1/12)-1,
+                            tax_on_interest=0.25)"""
     
+    df = calc.generate_saving_rate_dataframe(age_now=27,
+                                                age_then=95,
+                                                target_retirement=65,
+                                                vmin=100000,
+                                                v0=0,
+                                                monthly_need=4000,
+                                                interest_per_period_saving=(1+0.06)**(1/12)-1,
+                                                interest_per_period_taking=(1+0.05)**(1/12)-1,
+                                                tax_on_interest=0.25)
     
+    calc.draw_saving_rate_vs_age(df)
+    
+
